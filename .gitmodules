@@ -1,12 +1,12 @@
 [submodule "FPGA-UART"]
 	path = FPGA-UART
-	url = git@github.com:WangXuan95/FPGA-UART.git
+	url = https://github.com/WangXuan95/FPGA-UART.git
 [submodule "de10lite-hdl"]
 	path = de10lite-hdl
-	url = git@github.com:hildebrandmw/de10lite-hdl.git
+	url = https://github.com/hildebrandmw/de10lite-hdl
 [submodule "common_cells"]
 	path = common_cells
-	url = git@github.com:pulp-platform/common_cells.git
+	url = https://github.com/pulp-platform/common_cells.git
 [submodule "basics-graphics-music"]
 	path = basics-graphics-music
-	url = git@github.com:chipdesignschool/basics-graphics-music.git
+	url = https://github.com/chipdesignschool/basics-graphics-music.git
