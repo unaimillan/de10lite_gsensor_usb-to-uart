@@ -5,6 +5,7 @@ derive_clock_uncertainty
 set_false_path -from [get_ports {KEY[*]}]  -to [all_clocks]
 set_false_path -from [get_ports {SW[*]}]   -to [all_clocks]
 set_false_path -from [get_ports {GPIO[*]}] -to [all_clocks]
+set_false_path -from [get_ports {GSENSOR[*]}] -to [all_clocks]
 
 set_false_path -from * -to [get_ports {LEDR[*]}]
 
@@ -13,3 +14,5 @@ set_false_path -from * -to [get_ports {HEX*}]
 set_false_path -from * -to [get_ports {VGA*}]
 
 set_false_path -from * -to [get_ports {GPIO[*]}]
+
+set_false_path -from * -to [get_ports {GSENSOR[*]}]
