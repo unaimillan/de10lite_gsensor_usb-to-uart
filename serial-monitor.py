@@ -39,7 +39,7 @@ def main():
                 x_list.append(x)
                 y_list.append(y)
             
-            print(x, avg_x, y, avg_y)
+            print(f'act: {x} {y} avg: {avg_x:.3f} {avg_y:.3f}')
             sendTelemetry('x', avg_x)
             sendTelemetry('y', avg_y)
 

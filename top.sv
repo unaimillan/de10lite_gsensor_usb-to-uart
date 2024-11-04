@@ -26,88 +26,52 @@ module top(
     logic gdata_valid;
     logic [15:0] gdata_x, gdata_y, gdata_z;
 
-    logic gff_x_ready, gff_y_ready, gff_z_ready;
+    logic fifo_xyz_valid, fifo_xyz_ready;
     logic [15:0] gff_x, gff_y, gff_z;
 
-    localparam MESSAGE_STR = "<xxxx|yyyy|zzzz>\n";
-    localparam MESSAGE_SIZE = $size(MESSAGE_STR)/8;
+    localparam MESSAGE_FORMAT = "<xxxx|yyyy|zzzz>\n";
+    localparam MESSAGE_SIZE = $size(MESSAGE_FORMAT)/8;
 
-    logic [MESSAGE_SIZE-1: 0][7:0] uart_message = MESSAGE_STR;
+    logic [MESSAGE_SIZE-1: 0][7:0] uart_message;
+    assign uart_message = { "<", out_ascii_x, "|", out_ascii_y, "|", out_ascii_z, ">\n" };
+    // assert $size(uart_message) === MESSAGE_SIZE
 
     assign uart_tx_valid = uart_tx_strobe;
 
-     logic [$clog2(MESSAGE_SIZE) - 1:0] index;
+     logic [$clog2(MESSAGE_SIZE) - 1:0] message_idx;
      always_ff @ (posedge clk)
         if (rst)
-            index <= '0;
+            message_idx <= '0;
         else if (uart_tx_valid) begin
-            if (index == '0)
-               index <= MESSAGE_SIZE - 1'b1;
+            if (message_idx == '0)
+                message_idx <= MESSAGE_SIZE - 1'b1;
             else
-                index <= index - 1'b1;
+                message_idx <= message_idx - 1'b1;
         end
     
-    logic [1:0] digit_counter;
-    logic next_digit;
-    logic current_digit_x, current_digit_y, current_digit_z;
-    assign current_digit_x = uart_message[index] == "x";
-    assign current_digit_y = uart_message[index] == "y";
-    assign current_digit_z = uart_message[index] == "z";
-    assign next_digit = uart_tx_valid & (current_digit_x | current_digit_y | current_digit_z);
+    assign fifo_xyz_ready = message_idx == '0;
 
-    always_ff @ (posedge clk)
-        if (rst)
-            digit_counter <= 2'b11;
-        else if ( next_digit )
-            digit_counter <= digit_counter - 1'b1;
-    
-    assign gff_x_ready = digit_counter == 2'b00 & current_digit_x;
-    assign gff_y_ready = digit_counter == 2'b00 & current_digit_y;
-    assign gff_z_ready = digit_counter == 2'b00 & current_digit_z;
+    logic [3:0][7:0] out_ascii_x, out_ascii_y, out_ascii_z;
 
-    logic [3:0] out_data_binary;
-    logic [7:0] out_data_ascii;
-
-    always_comb begin
-        out_data_binary = '0;
-
-        if (current_digit_x)
-            out_data_binary = gff_x[4*digit_counter +: 4];
-
-        if (current_digit_y)
-            out_data_binary = gff_y[4*digit_counter +: 4];
-
-        if (current_digit_z)
-            out_data_binary = gff_z[4*digit_counter +: 4];
-    end
-    // assign out_data_binary = gdata_x[4*1 +: 4];
-    
-
-    bin_to_ascii_hex ibin (
-        .binary(out_data_binary),
-        .ascii_hex(out_data_ascii)
+    bin_to_ascii_hex convert_x (
+        .binary(gff_x),
+        .ascii_hex(out_ascii_x)
+    );
+    bin_to_ascii_hex convert_y (
+        .binary(gff_y),
+        .ascii_hex(out_ascii_y)
+    );
+    bin_to_ascii_hex convert_z (
+        .binary(gff_z),
+        .ascii_hex(out_ascii_z)
     );
 
-    always_comb begin
-        uart_tx_data = uart_message[index];
-        if (next_digit) begin
-            uart_tx_data = out_data_ascii;
-        end
-    end
+    assign uart_tx_data = uart_message[message_idx];
 
     
-    // always_comb begin
-    //     uart_write = helloworld[index];
-    //     if (uart_write == '0)
-    //         uart_write = " ";
-    //     uart_write = receive_data_r;
-    //     if (8'd97 <= receive_data_r && receive_data_r <= 8'd122 ) begin
-    //         uart_write = receive_data_r - 8'd32;
-    //     end
-    // end
 
 	strobe_gen #(
-        .strobe_hz(100)
+        .strobe_hz( 1000 )
     ) stb (
 		.clk    (            clk ),
 		.rst    (            rst ),
@@ -130,7 +94,7 @@ module top(
     );
 
     gsensor #(
-        .UPDATE_FREQUENCY (5)
+        .UPDATE_FREQUENCY ( 50 )
     ) igsen (
         .clk( clk ),
         .reset_n ( ~ rst),
@@ -146,7 +110,7 @@ module top(
         .SPI_SDO( GSENSOR_SDO  )
     );
     
-    ff_fifo_wrapped_in_valid_ready #(
+    stream_fifo #(
         .width ( 16 )
     ) gdata_x_fifo (
         .clk ( clk ),
@@ -156,12 +120,14 @@ module top(
         .up_ready (),
         .up_data ( gdata_x ),
 
-        .down_valid (  ),
-        .down_ready ( gff_x_ready ),
-        .down_data  ( gff_x )
+        .down_valid ( fifo_xyz_valid ),
+        .down_ready ( fifo_xyz_ready ),
+        .down_data  ( gff_x ),
+
+        .usage ( LEDR )
     );
 
-    ff_fifo_wrapped_in_valid_ready #(
+    stream_fifo #(
         .width ( 16 )
     ) gdata_y_fifo (
         .clk ( clk ),
@@ -172,11 +138,11 @@ module top(
         .up_data ( gdata_y ),
 
         .down_valid (  ),
-        .down_ready ( gff_y_ready ),
+        .down_ready ( fifo_xyz_ready ),
         .down_data  ( gff_y )
     );
 
-    ff_fifo_wrapped_in_valid_ready #(
+    stream_fifo #(
         .width ( 16 )
     ) gdata_z_fifo (
         .clk ( clk ),
@@ -184,44 +150,11 @@ module top(
 
         .up_valid ( gdata_valid ),
         .up_ready (),
-        .up_data ( gdata_z ),
+        .up_data  ( gdata_z ),
 
         .down_valid (  ),
-        .down_ready ( gff_z_ready ),
+        .down_ready ( fifo_xyz_ready ),
         .down_data  ( gff_z )
     );
-
-// ----------------------------------------------
-
-    // logic uart_enable, enable_r;
-    // logic [7:0] receive_data_r, receive_data;
-
-    // uart_rx iuart_rx (
-    //     .clk  (   clk ),
-    //     .rstn ( ~ rst ),
-
-    //     .i_uart_rx ( UART_RX ),
-
-    //     .o_tready( '1 ),
-    //     .o_tvalid( uart_enable ),
-    //     .o_tdata ( receive_data   ),
-        
-    //     .o_overflow ( )
-    // );
-
-    // always_ff @ (posedge clk)
-    //     if (rst)
-    //         enable_r <= '0;
-    //     else
-    //         enable_r <= uart_enable;
-
-
-    // always_ff @ (posedge clk)
-    //     if (rst)
-    //         receive_data_r <= '0;
-    //     else if (uart_enable)
-    //         receive_data_r <= receive_data;
-    
-    // assign LEDR = receive_data_r;
 
 endmodule
